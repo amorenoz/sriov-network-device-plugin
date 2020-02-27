@@ -1,10 +1,8 @@
 package resources
 
 import (
-	//	"fmt"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
-	//	"strconv"
-	"strings"
+	"github.com/intel/sriov-network-device-plugin/pkg/utils"
 )
 
 // GENERIC FILTERS
@@ -22,7 +20,7 @@ func (s *vendorSelector) Filter(inDevices []types.GenericPciDevice) []types.Gene
 	filteredList := make([]types.GenericPciDevice, 0)
 	for _, dev := range inDevices {
 		devVendor := dev.GetVendor()
-		if contains(s.vendors, devVendor) {
+		if utils.Contains(s.vendors, devVendor) {
 			filteredList = append(filteredList, dev)
 		}
 	}
@@ -42,7 +40,7 @@ func (s *deviceSelector) Filter(inDevices []types.GenericPciDevice) []types.Gene
 	filteredList := make([]types.GenericPciDevice, 0)
 	for _, dev := range inDevices {
 		devCode := dev.GetDeviceCode()
-		if contains(s.devices, devCode) {
+		if utils.Contains(s.devices, devCode) {
 			filteredList = append(filteredList, dev)
 		}
 	}
@@ -62,27 +60,9 @@ func (s *driverSelector) Filter(inDevices []types.GenericPciDevice) []types.Gene
 	filteredList := make([]types.GenericPciDevice, 0)
 	for _, dev := range inDevices {
 		devDriver := dev.GetDriver()
-		if contains(s.drivers, devDriver) {
+		if utils.Contains(s.drivers, devDriver) {
 			filteredList = append(filteredList, dev)
 		}
 	}
 	return filteredList
-}
-
-func getItem(hay []string, needle string) string {
-	for _, item := range hay {
-		if strings.HasPrefix(item, needle) {
-			return item
-		}
-	}
-	return ""
-}
-
-func contains(hay []string, needle string) bool {
-	for _, s := range hay {
-		if s == needle {
-			return true
-		}
-	}
-	return false
 }

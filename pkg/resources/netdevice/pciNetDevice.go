@@ -27,24 +27,8 @@ type PciNetDevice interface {
 	GetDDPProfiles() string
 }
 
-// TODO: move
-type genericPciDevice struct {
-	pciDevice   *ghw.PCIDevice
-	ifName      string
-	pfAddr      string
-	driver      string
-	vendor      string
-	product     string
-	vfID        int
-	env         string
-	numa        string
-	apiDevice   *pluginapi.Device
-	deviceSpecs []*pluginapi.DeviceSpec
-	mounts      []*pluginapi.Mount
-}
-
 type pciNetDevice struct {
-	genericPciDevice
+	utils.PciDeviceBase
 	rdmaSpec  types.RdmaSpec
 	linkType  string
 	linkSpeed string
@@ -286,16 +270,16 @@ func NewPciNetDevice(pciDevice *ghw.PCIDevice, rFactory types.ResourceFactory) (
 
 	// 			4. Create pciNetDevice object with all relevent info
 	return &pciNetDevice{
-		genericPciDevice: genericPciDevice{
-			pciDevice:   pciDevice,
-			ifName:      ifName,
-			driver:      driverName,
-			vfID:        vfID,
-			apiDevice:   apiDevice,
-			deviceSpecs: dSpecs,
-			mounts:      mnt,
-			env:         env,
-			numa:        nodeToStr(nodeNum),
+		PciDeviceBase: utils.PciDeviceBase{
+			PciDevice:   pciDevice,
+			IfName:      ifName,
+			Driver:      driverName,
+			VfID:        vfID,
+			APIDevice:   apiDevice,
+			DeviceSpecs: dSpecs,
+			Mounts:      mnt,
+			Env:         env,
+			Numa:        nodeToStr(nodeNum),
 		},
 		rdmaSpec:  rdmaSpec,
 		linkType:  linkType,
@@ -309,55 +293,11 @@ func (nd *pciNetDevice) GetPFName() string {
 }
 
 func (nd *pciNetDevice) GetNetName() string {
-	return nd.ifName
-}
-
-func (nd *genericPciDevice) GetPfPciAddr() string {
-	return nd.pfAddr
-}
-
-func (nd *genericPciDevice) GetVendor() string {
-	return nd.pciDevice.Vendor.ID
-}
-
-func (nd *genericPciDevice) GetDeviceCode() string {
-	return nd.pciDevice.Product.ID
-}
-
-func (nd *genericPciDevice) GetPciAddr() string {
-	return nd.pciDevice.Address
-}
-
-func (nd *genericPciDevice) GetDriver() string {
-	return nd.driver
-}
-
-func (nd *genericPciDevice) IsSriovPF() bool {
-	return false
+	return nd.IfName
 }
 
 func (nd *pciNetDevice) GetLinkSpeed() string {
 	return nd.linkSpeed
-}
-
-func (nd *genericPciDevice) GetSubClass() string {
-	return nd.pciDevice.Subclass.ID
-}
-
-func (nd *genericPciDevice) GetDeviceSpecs() []*pluginapi.DeviceSpec {
-	return nd.deviceSpecs
-}
-
-func (nd *genericPciDevice) GetEnvVal() string {
-	return nd.env
-}
-
-func (nd *genericPciDevice) GetMounts() []*pluginapi.Mount {
-	return nd.mounts
-}
-
-func (nd *genericPciDevice) GetAPIDevice() *pluginapi.Device {
-	return nd.apiDevice
 }
 
 func (nd *pciNetDevice) GetRdmaSpec() types.RdmaSpec {
@@ -372,32 +312,30 @@ func (nd *pciNetDevice) GetLinkType() string {
 	return nd.linkType
 }
 
-func (nd *genericPciDevice) GetVFID() int {
-	return nd.vfID
-}
-
 func (nd *pciNetDevice) GetDDPProfiles() string {
-	ddpProfile, err := utils.GetDDPProfiles(nd.pciDevice.Address)
+	ddpProfile, err := utils.GetDDPProfiles(nd.PciDevice.Address)
 	if err != nil {
-		glog.Infof("GetDDPProfiles(): unable to get ddp profiles for device %s : %q", nd.pciDevice.Address, err)
+		glog.Infof("GetDDPProfiles(): unable to get ddp profiles for device %s : %q", nd.PciDevice.Address, err)
 		return ""
 	}
 	return ddpProfile
 }
 
-// The netDevResourcePool extends the ResourcePool with device-specific logic
-type netDevResourcePool struct {
-	resourcePool
+// NetDevResourcePool extends the ResourcePool with device-specific logic
+type NetDevResourcePool struct {
+	utils.ResourcePoolBase
 }
 
-func (rp *netDevResourcePool) GetDeviceSpecs(deviceIDs []string) []*pluginapi.DeviceSpec {
+// GetDeviceSpecs returns the device specs of a netdev resource
+// It overrides the default implementation to provide also the rdma char devices
+func (rp *NetDevResourcePool) GetDeviceSpecs(deviceIDs []string) []*pluginapi.DeviceSpec {
 	glog.Infof("GetDeviceSpecs(): for devices: %v", deviceIDs)
 	devSpecs := make([]*pluginapi.DeviceSpec, 0)
-	netDevConf := rp.config.DeviceConfig.(NetDevResourceConfig)
+	netDevConf := rp.Config.DeviceConfig.(NetDevResourceConfig)
 
 	// Add vfio group specific devices
 	for _, id := range deviceIDs {
-		if dev, ok := rp.devicePool[id]; ok {
+		if dev, ok := rp.DevicePool[id]; ok {
 			netDev := dev.(PciNetDevice)
 			newSpecs := netDev.GetDeviceSpecs()
 			rdmaSpec := netDev.GetRdmaSpec()
@@ -410,7 +348,7 @@ func (rp *netDevResourcePool) GetDeviceSpecs(deviceIDs []string) []*pluginapi.De
 				}
 			}
 			for _, ds := range newSpecs {
-				if !deviceSpecExist(devSpecs, ds) {
+				if !utils.DeviceSpecExist(devSpecs, ds) {
 					devSpecs = append(devSpecs, ds)
 				}
 
@@ -419,4 +357,16 @@ func (rp *netDevResourcePool) GetDeviceSpecs(deviceIDs []string) []*pluginapi.De
 		}
 	}
 	return devSpecs
+}
+
+// NewNetDevResourcePool creates a NetDevResourcePool
+func NewNetDevResourcePool(rc *types.ResourceConfig, ad map[string]*pluginapi.Device, dp map[string]types.GenericPciDevice) *NetDevResourcePool {
+
+	return &NetDevResourcePool{
+		utils.ResourcePoolBase{
+			Config:     rc,
+			Devices:    ad,
+			DevicePool: dp,
+		},
+	}
 }

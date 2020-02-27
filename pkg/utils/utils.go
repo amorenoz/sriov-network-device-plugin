@@ -384,3 +384,23 @@ func GetVFID(pciAddr string) (vfID int, err error) {
 	vfID = -1
 	return vfID, nil
 }
+
+// Contains looks for a needle in a hay
+func Contains(hay []string, needle string) bool {
+	for _, s := range hay {
+		if s == needle {
+			return true
+		}
+	}
+	return false
+}
+
+// GetItem  retunrs the needle in the hay
+func GetItem(hay []string, needle string) string {
+	for _, item := range hay {
+		if strings.HasPrefix(item, needle) {
+			return item
+		}
+	}
+	return ""
+}

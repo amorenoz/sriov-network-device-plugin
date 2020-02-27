@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
+	netdev "github.com/intel/sriov-network-device-plugin/pkg/resources/netdevice"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 )
@@ -100,7 +101,14 @@ func (rf *resourceFactory) GetResourcePool(rc *types.ResourceConfig, filteredDev
 			dev.GetDriver())
 	}
 
-	rPool := newResourcePool(rc, apiDevices, devicePool)
+	var rPool types.ResourcePool
+
+	switch rc.CommonConfig.ResourceType {
+	case "netdev":
+		rPool = netdev.NewNetDevResourcePool(rc, apiDevices, devicePool)
+	default:
+		glog.Infof("Cannot create resource pool of device type %s", rc.CommonConfig.ResourceType)
+	}
 	return rPool, nil
 }
 

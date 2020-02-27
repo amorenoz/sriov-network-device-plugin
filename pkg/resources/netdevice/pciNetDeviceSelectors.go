@@ -3,6 +3,7 @@ package resources
 import (
 	"fmt"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
+	"github.com/intel/sriov-network-device-plugin/pkg/utils"
 	"strconv"
 	"strings"
 )
@@ -21,7 +22,7 @@ func (s *pfNameSelector) Filter(inDevices []types.GenericPciDevice) []types.Gene
 	filteredList := make([]types.GenericPciDevice, 0)
 	for _, dev := range inDevices {
 		netDev := dev.(PciNetDevice)
-		selector := getItem(s.pfNames, netDev.GetPFName())
+		selector := utils.GetItem(s.pfNames, netDev.GetPFName())
 		if selector != "" {
 			if strings.Contains(selector, "#") {
 				// Selector does contain VF index in next format:
@@ -92,7 +93,7 @@ func (s *linkTypeSelector) Filter(inDevices []types.GenericPciDevice) []types.Ge
 	filteredList := make([]types.GenericPciDevice, 0)
 	for _, dev := range inDevices {
 		netDev := dev.(PciNetDevice)
-		if contains(s.linkTypes, netDev.GetLinkType()) {
+		if utils.Contains(s.linkTypes, netDev.GetLinkType()) {
 			filteredList = append(filteredList, dev)
 		}
 	}

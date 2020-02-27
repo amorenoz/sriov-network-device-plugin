@@ -2,6 +2,7 @@ package resources
 
 import (
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
+	"github.com/intel/sriov-network-device-plugin/pkg/utils"
 )
 
 type ddpSelector struct {
@@ -19,7 +20,7 @@ func (ds *ddpSelector) Filter(inDevices []types.GenericPciDevice) []types.Generi
 	for _, dev := range inDevices {
 		netDev := dev.(PciNetDevice)
 		ddpProfile := netDev.GetDDPProfiles()
-		if ddpProfile != "" && contains(ds.profiles, ddpProfile) {
+		if ddpProfile != "" && utils.Contains(ds.profiles, ddpProfile) {
 			filteredList = append(filteredList, dev)
 		}
 	}

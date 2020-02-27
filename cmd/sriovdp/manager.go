@@ -24,6 +24,7 @@ import (
 	"github.com/jaypipes/ghw"
 
 	"github.com/intel/sriov-network-device-plugin/pkg/resources"
+	netdev "github.com/intel/sriov-network-device-plugin/pkg/resources/netdevice"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
 	"github.com/intel/sriov-network-device-plugin/pkg/utils"
 )
@@ -99,9 +100,16 @@ func (rm *resourceManager) readConfig() error {
 		if err = json.Unmarshal(res.ResourceList[i], &config.CommonConfig); err != nil {
 			return fmt.Errorf("error unmarshalling common config %v", err)
 		}
+
+		// keep netdev as the default value
+		if config.CommonConfig.ResourceType == "" {
+			glog.Infof("Setting default ResourceType: netdev\n")
+			config.CommonConfig.ResourceType = "netdev"
+		}
+
 		switch config.CommonConfig.ResourceType {
-		case "netdevice":
-			config.DeviceConfig = new(resources.NetDevResourceConfig)
+		case "netdev":
+			config.DeviceConfig = new(netdev.NetDevResourceConfig)
 			err := json.Unmarshal(res.ResourceList[i], &config.DeviceConfig)
 			if err != nil {
 				return fmt.Errorf("error unmarshalling netdev config %v", err)
@@ -201,7 +209,7 @@ func (rm *resourceManager) validConfigs() bool {
 }
 
 var deviceTypes = []types.DeviceType{
-	resources.NetDeviceType{},
+	netdev.NetDeviceType{},
 	//OtherDeviceType{},
 }
 
