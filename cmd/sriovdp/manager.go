@@ -18,11 +18,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"strconv"
+	//"strconv"
 
 	"github.com/golang/glog"
 	"github.com/jaypipes/ghw"
-	"github.com/vishvananda/netlink"
 
 	"github.com/intel/sriov-network-device-plugin/pkg/resources"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
@@ -31,7 +30,6 @@ import (
 
 const (
 	socketSuffix = "sock"
-	netClass     = 0x02 // Device class - Network controller.	 ref: https://pci-ids.ucw.cz/read/PD/02 (for Sub-Classes)
 )
 
 /*
@@ -60,8 +58,8 @@ type resourceManager struct {
 	rFactory        types.ResourceFactory
 	configList      []*types.ResourceConfig // resourceName -> resourcePool
 	resourceServers []types.ResourceServer
-	netDeviceList   []types.PciNetDevice         // all network devices in host
-	linkWatchList   map[string]types.LinkWatcher // SRIOV PF list - for watching link status
+	deviceList      map[types.DeviceType][]types.GenericPciDevice // all devices in host
+	linkWatchList   map[string]types.LinkWatcher                  // SRIOV PF list - for watching link status
 }
 
 func newResourceManager(cp *cliParams) *resourceManager {
@@ -75,7 +73,7 @@ func newResourceManager(cp *cliParams) *resourceManager {
 		cliParams:       *cp,
 		pluginWatchMode: pluginWatchMode,
 		rFactory:        resources.NewResourceFactory(cp.resourcePrefix, socketSuffix, pluginWatchMode),
-		netDeviceList:   make([]types.PciNetDevice, 0),
+		deviceList:      make(map[types.DeviceType][]types.GenericPciDevice, 0),
 		linkWatchList:   make(map[string]types.LinkWatcher, 0),
 	}
 }
@@ -83,7 +81,7 @@ func newResourceManager(cp *cliParams) *resourceManager {
 // Read and validate configurations from Config file
 func (rm *resourceManager) readConfig() error {
 
-	resources := &types.ResourceConfList{}
+	res := &types.ResourceConfList{}
 	rawBytes, err := ioutil.ReadFile(rm.configFile)
 
 	if err != nil {
@@ -91,13 +89,25 @@ func (rm *resourceManager) readConfig() error {
 
 	}
 
-	if err = json.Unmarshal(rawBytes, resources); err != nil {
+	if err = json.Unmarshal(rawBytes, res); err != nil {
 		return fmt.Errorf("error unmarshalling raw bytes %v", err)
 	}
 
-	glog.Infof("ResourceList: %+v", resources.ResourceList)
-	for i := range resources.ResourceList {
-		rm.configList = append(rm.configList, &resources.ResourceList[i])
+	glog.Infof("ResourceList: %+v", res.ResourceList)
+	for i := range res.ResourceList {
+		var config types.ResourceConfig
+		if err = json.Unmarshal(res.ResourceList[i], &config.CommonConfig); err != nil {
+			return fmt.Errorf("error unmarshalling common config %v", err)
+		}
+		switch config.CommonConfig.ResourceType {
+		case "netdevice":
+			config.DeviceConfig = new(resources.NetDevResourceConfig)
+			err := json.Unmarshal(res.ResourceList[i], &config.DeviceConfig)
+			if err != nil {
+				return fmt.Errorf("error unmarshalling netdev config %v", err)
+			}
+		}
+		rm.configList = append(rm.configList, &config)
 	}
 
 	return nil
@@ -109,9 +119,13 @@ func (rm *resourceManager) initServers() error {
 	for _, rc := range rm.configList {
 		// Create new ResourcePool
 		glog.Infof("")
-		glog.Infof("Creating new ResourcePool: %s", rc.ResourceName)
+		glog.Infof("Creating new ResourcePool: %s", rc.CommonConfig.ResourceName)
+		// Filter once with generic filters:
 		filteredDevices := rm.getFilteredDevices(rc)
 		rPool, err := rm.rFactory.GetResourcePool(rc, filteredDevices)
+		// Inside getresourcePool the devices should be filtered again
+		// this time using per-resource filters
+
 		if err != nil {
 			glog.Errorf("initServers(): error creating ResourcePool with config %+v: %q", rc, err)
 			return err
@@ -123,7 +137,7 @@ func (rm *resourceManager) initServers() error {
 			glog.Errorf("initServers(): error creating ResourceServer: %v", err)
 			return err
 		}
-		glog.Infof("New resource server is created for %s ResourcePool", rc.ResourceName)
+		glog.Infof("New resource server is created for %s ResourcePool", rc.CommonConfig.ResourceName)
 		rm.resourceServers = append(rm.resourceServers, s)
 	}
 	return nil
@@ -152,24 +166,24 @@ func (rm *resourceManager) stopAllServers() error {
 	return nil
 }
 
-// Validate configurations
+// Validate configurations. TODO: Add a devicetype-specific validation function?
 func (rm *resourceManager) validConfigs() bool {
 	resourceNames := make(map[string]string) // resource names placeholder
 
 	for _, conf := range rm.configList {
 		// check if name contains acceptable characters
-		if !utils.ValidResourceName(conf.ResourceName) {
-			glog.Errorf("resource name \"%s\" contains invalid characters", conf.ResourceName)
+		if !utils.ValidResourceName(conf.CommonConfig.ResourceName) {
+			glog.Errorf("resource name \"%s\" contains invalid characters", conf.CommonConfig.ResourceName)
 			return false
 		}
 
 		// resourcePrefix might be overriden for a given resource pool
 		resourcePrefix := rm.cliParams.resourcePrefix
-		if conf.ResourcePrefix != "" {
-			resourcePrefix = conf.ResourcePrefix
+		if conf.CommonConfig.ResourcePrefix != "" {
+			resourcePrefix = conf.CommonConfig.ResourcePrefix
 		}
 
-		resourceName := resourcePrefix + "/" + conf.ResourceName
+		resourceName := resourcePrefix + "/" + conf.CommonConfig.ResourceName
 
 		glog.Infof("validating resource name \"%s\"", resourceName)
 
@@ -186,6 +200,11 @@ func (rm *resourceManager) validConfigs() bool {
 	return true
 }
 
+var deviceTypes = []types.DeviceType{
+	resources.NetDeviceType{},
+	//OtherDeviceType{},
+}
+
 func (rm *resourceManager) discoverHostDevices() error {
 	glog.Infoln("discovering host network devices")
 
@@ -196,85 +215,18 @@ func (rm *resourceManager) discoverHostDevices() error {
 
 	devices := pci.ListDevices()
 	if len(devices) == 0 {
-		glog.Warningf("discoverDevices(): no PCI network device found")
+		glog.Warningf("discoverDevices(): no PCI devices found")
 	}
-	for _, device := range devices {
-		devClass, err := strconv.ParseInt(device.Class.ID, 16, 64)
-		if err != nil {
-			glog.Warningf("discoverDevices(): unable to parse device class for device %+v %q", device, err)
-			continue
-		}
 
-		// only interested in network class
-		if devClass == netClass {
-			vendor := device.Vendor
-			vendorName := vendor.Name
-			if len(vendor.Name) > 20 {
-				vendorName = string([]byte(vendorName)[0:17]) + "..."
-			}
-			product := device.Product
-			productName := product.Name
-			if len(product.Name) > 40 {
-				productName = string([]byte(productName)[0:37]) + "..."
-			}
-			glog.Infof("discoverDevices(): device found: %-12s\t%-12s\t%-20s\t%-40s", device.Address, device.Class.ID, vendorName, productName)
-
-			// exclude device in-use in host
-			if isDefaultRoute, _ := hasDefaultRoute(device.Address); !isDefaultRoute {
-
-				aPF := utils.IsSriovPF(device.Address)
-				aVF := utils.IsSriovVF(device.Address)
-
-				if aPF || !aVF {
-					// add to linkWatchList
-					rm.addToLinkWatchList(device.Address)
-				}
-
-				if aPF && utils.SriovConfigured(device.Address) {
-					// do not add this device in net device list
-					continue
-				}
-
-				if newDevice, err := resources.NewPciNetDevice(device, rm.rFactory); err == nil {
-					rm.netDeviceList = append(rm.netDeviceList, newDevice)
-				} else {
-					glog.Errorf("discoverDevices() error adding new device: %q", err)
-				}
-
-			}
+	for _, dtype := range deviceTypes {
+		/// DO PER DEVICE DISCOVERY
+		deviceList, watchList := dtype.DiscoverHostDevices(devices, rm.rFactory)
+		rm.deviceList[dtype] = deviceList
+		for _, addr := range watchList {
+			rm.addToLinkWatchList(addr)
 		}
 	}
 	return nil
-}
-
-// hasDefaultRoute returns true if PCI network device is default route interface
-func hasDefaultRoute(pciAddr string) (bool, error) {
-
-	// inUse := false
-	// Get net interface name
-	ifNames, err := utils.GetNetNames(pciAddr)
-	if err != nil {
-		return false, fmt.Errorf("error trying get net device name for device %s", pciAddr)
-	}
-
-	if len(ifNames) > 0 { // there's at least one interface name found
-		for _, ifName := range ifNames {
-			link, err := netlink.LinkByName(ifName)
-			if err != nil {
-				glog.Errorf("expected to get valid host interface with name %s: %q", ifName, err)
-			}
-
-			routes, err := netlink.RouteList(link, netlink.FAMILY_V4) // IPv6 routes: all interface has at least one link local route entry
-			for _, r := range routes {
-				if r.Dst == nil {
-					glog.Infof("excluding interface %s:  default route found: %+v", ifName, r)
-					return true, nil
-				}
-			}
-		}
-	}
-
-	return false, nil
 }
 
 func (rm *resourceManager) addToLinkWatchList(pciAddr string) {
@@ -293,69 +245,57 @@ func (rm *resourceManager) addToLinkWatchList(pciAddr string) {
 	}
 }
 
+func findResourcetype(typename string) types.DeviceType {
+	for _, dtype := range deviceTypes {
+		if dtype.GetName() == typename {
+			return dtype
+		}
+	}
+	return nil
+}
+
 // applyFilters returned a subset PciNetDevices by applying given selectors values in the following orders:
 // "vendors", "devices", "drivers", "pfNames", "ddpProfiles".
 // Each selector gets a new sub-set of devices from the result of previous one.
-func (rm *resourceManager) getFilteredDevices(rc *types.ResourceConfig) []types.PciNetDevice {
-	filteredDevice := rm.netDeviceList
+func (rm *resourceManager) getFilteredDevices(rc *types.ResourceConfig) []types.GenericPciDevice {
+	dtype := findResourcetype(rc.CommonConfig.ResourceType)
+	var selectors []string
+	if dtype == nil {
+		return nil // TODO ERROR!
+	}
+	filteredDevice := rm.deviceList[dtype]
+
+	// Run common selectors
 
 	rf := rm.rFactory
 	// filter by vendor list
-	if rc.Selectors.Vendors != nil && len(rc.Selectors.Vendors) > 0 {
-		if selector, err := rf.GetSelector("vendors", rc.Selectors.Vendors); err == nil {
+	selectors = rc.DeviceConfig.GetSelector("vendors")
+	if selectors != nil && len(selectors) > 0 {
+		if selector, err := rf.GetSelector("vendors", selectors); err == nil {
 			filteredDevice = selector.Filter(filteredDevice)
 		}
 	}
 
 	// filter by device list
-	if rc.Selectors.Devices != nil && len(rc.Selectors.Devices) > 0 {
-		if selector, err := rf.GetSelector("devices", rc.Selectors.Devices); err == nil {
+
+	selectors = rc.DeviceConfig.GetSelector("devices")
+	if selectors != nil && len(selectors) > 0 {
+		if selector, err := rf.GetSelector("devices", selectors); err == nil {
 			filteredDevice = selector.Filter(filteredDevice)
 		}
 	}
 
 	// filter by driver list
-	if rc.Selectors.Drivers != nil && len(rc.Selectors.Drivers) > 0 {
-		if selector, err := rf.GetSelector("drivers", rc.Selectors.Drivers); err == nil {
+	selectors = rc.DeviceConfig.GetSelector("drivers")
+	if selectors != nil && len(selectors) > 0 {
+		if selector, err := rf.GetSelector("drivers", selectors); err == nil {
 			filteredDevice = selector.Filter(filteredDevice)
 		}
 	}
 
-	// filter by PfNames list
-	if rc.Selectors.PfNames != nil && len(rc.Selectors.PfNames) > 0 {
-		if selector, err := rf.GetSelector("pfNames", rc.Selectors.PfNames); err == nil {
-			filteredDevice = selector.Filter(filteredDevice)
-		}
-	}
+	// Run device specific selectors
 
-	// filter by linkTypes list
-	if rc.Selectors.LinkTypes != nil && len(rc.Selectors.LinkTypes) > 0 {
-		if len(rc.Selectors.LinkTypes) > 1 {
-			glog.Warningf("Link type selector should have a single value.")
-		}
-		if selector, err := rf.GetSelector("linkTypes", rc.Selectors.LinkTypes); err == nil {
-			filteredDevice = selector.Filter(filteredDevice)
-		}
-	}
-
-	// filter by DDP Profiles list
-	if rc.Selectors.DDPProfiles != nil && len(rc.Selectors.DDPProfiles) > 0 {
-		if selector, err := rf.GetSelector("ddpProfiles", rc.Selectors.DDPProfiles); err == nil {
-			filteredDevice = selector.Filter(filteredDevice)
-		}
-	}
-
-	// filter for rdma devices
-	if rc.IsRdma {
-		rdmaDevices := make([]types.PciNetDevice, 0)
-		for _, dev := range filteredDevice {
-			if dev.GetRdmaSpec().IsRdma() {
-				rdmaDevices = append(rdmaDevices, dev)
-			}
-		}
-		filteredDevice = rdmaDevices
-	}
-
+	filteredDevice = dtype.FilterDevices(rc, rf, filteredDevice)
 	return filteredDevice
 }
 

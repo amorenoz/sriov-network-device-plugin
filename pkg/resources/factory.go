@@ -77,23 +77,19 @@ func (rf *resourceFactory) GetSelector(attr string, values []string) (types.Devi
 		return newDeviceSelector(values), nil
 	case "drivers":
 		return newDriverSelector(values), nil
-	case "pfNames":
-		return newPfNameSelector(values), nil
-	case "linkTypes":
-		return newLinkTypeSelector(values), nil
-	case "ddpProfiles":
-		return newDdpSelector(values), nil
 	default:
 		return nil, fmt.Errorf("GetSelector(): invalid attribute %s", attr)
 	}
 }
 
 // GetResourcePool returns an instance of resourcePool
-func (rf *resourceFactory) GetResourcePool(rc *types.ResourceConfig, filteredDevice []types.PciNetDevice) (types.ResourcePool, error) {
+func (rf *resourceFactory) GetResourcePool(rc *types.ResourceConfig, filteredDevice []types.GenericPciDevice) (types.ResourcePool, error) {
 
-	devicePool := make(map[string]types.PciNetDevice, 0)
+	devicePool := make(map[string]types.GenericPciDevice, 0)
 	apiDevices := make(map[string]*pluginapi.Device)
 	for _, dev := range filteredDevice {
+		// Create the child device from each device
+		// Add it to the pool. Filter now???
 		pciAddr := dev.GetPciAddr()
 		devicePool[pciAddr] = dev
 		apiDevices[pciAddr] = dev.GetAPIDevice()

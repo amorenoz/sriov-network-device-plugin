@@ -9,15 +9,16 @@ type ddpSelector struct {
 }
 
 // newDdpSelector returns a DeviceSelector interface to filter devices based on available DDP profile
-func newDdpSelector(profiles []string) types.DeviceSelector {
+func newDdpSelector(profiles []string) NetDeviceSelector {
 	return &ddpSelector{profiles: profiles}
 }
 
-func (ds *ddpSelector) Filter(inDevices []types.PciNetDevice) []types.PciNetDevice {
-	filteredList := make([]types.PciNetDevice, 0)
+func (ds *ddpSelector) Filter(inDevices []types.GenericPciDevice) []types.GenericPciDevice {
+	filteredList := make([]types.GenericPciDevice, 0)
 
 	for _, dev := range inDevices {
-		ddpProfile := dev.GetDDPProfiles()
+		netDev := dev.(PciNetDevice)
+		ddpProfile := netDev.GetDDPProfiles()
 		if ddpProfile != "" && contains(ds.profiles, ddpProfile) {
 			filteredList = append(filteredList, dev)
 		}

@@ -15,6 +15,8 @@
 package types
 
 import (
+	"encoding/json"
+	ghw "github.com/jaypipes/ghw"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 )
 
@@ -30,24 +32,42 @@ const (
 	KubeEndPoint = "kubelet.sock"
 )
 
+// DeviceType is the interface all DeviceTypes must implement
+type DeviceType interface {
+	GetName() string
+
+	DiscoverHostDevices([]*ghw.PCIDevice, ResourceFactory) ([]GenericPciDevice, []string)
+	FilterDevices(*ResourceConfig, ResourceFactory, []GenericPciDevice) []GenericPciDevice
+}
+
 // ResourceConfig contains cofiguration paremeters for a resource pool
 type ResourceConfig struct {
+	CommonConfig CommonResourceConfig
+	DeviceConfig DeviceConfigI // We don't know which type it is
+}
+
+// DeviceConfigI is the interface all derived ResourceConfigs should satisfy
+type DeviceConfigI interface {
+	GetSelector(string) []string
+}
+
+// CommonSelectors are selector configuration that can be included in any ResourceType
+type CommonSelectors struct {
+	Vendors []string `json:"vendors,omitempty"`
+	Devices []string `json:"devices,omitempty"`
+	Drivers []string `json:"drivers,omitempty"`
+}
+
+// CommonResourceConfig are the fields that should be included in all Resource Configurations (ResourceType-independent)
+type CommonResourceConfig struct {
 	ResourcePrefix string `json:"resourcePrefix,omitempty"` // optional resource prefix that will ovewrite global prefix specified in cli params
 	ResourceName   string `json:"resourceName"`             // the resource name will be added with resource prefix in K8s api
-	IsRdma         bool   // the resource support rdma
-	Selectors      struct {
-		Vendors     []string `json:"vendors,omitempty"`
-		Devices     []string `json:"devices,omitempty"`
-		Drivers     []string `json:"drivers,omitempty"`
-		PfNames     []string `json:"pfNames,omitempty"`
-		LinkTypes   []string `json:"linkTypes,omitempty"`
-		DDPProfiles []string `json:"ddpProfiles,omitempty"`
-	} `json:"selectors,omitempty"` // Whether devices have SRIOV virtual function capabilities or not
+	ResourceType   string `json:"resourceType,omitempty"`   // the resource type
 }
 
 // ResourceConfList is list of ResourceConfig
 type ResourceConfList struct {
-	ResourceList []ResourceConfig `json:"resourceList"` // config file: "resourceList" :[{<ResourceConfig configs>},{},{},...]
+	ResourceList []json.RawMessage `json:"resourceList"` // config file: "resourceList" :[{<ResourceConfig configs>},{},{},...]
 }
 
 // ResourceServer is gRPC server implements K8s device plugin api
@@ -68,7 +88,7 @@ type ResourceFactory interface {
 	GetResourceServer(ResourcePool) (ResourceServer, error)
 	GetInfoProvider(string) DeviceInfoProvider
 	GetSelector(string, []string) (DeviceSelector, error)
-	GetResourcePool(rc *ResourceConfig, deviceList []PciNetDevice) (ResourcePool, error)
+	GetResourcePool(rc *ResourceConfig, deviceList []GenericPciDevice) (ResourcePool, error)
 	GetRdmaSpec(string) RdmaSpec
 }
 
@@ -84,26 +104,28 @@ type ResourcePool interface {
 	GetMounts(deviceIDs []string) []*pluginapi.Mount
 }
 
-// PciNetDevice provides an interface to get device specific information
-type PciNetDevice interface {
-	GetPFName() string
+// GenericPciDevice provides an interface to get device specific information
+type GenericPciDevice interface {
 	GetPfPciAddr() string
 	GetVendor() string
 	GetDriver() string
 	GetDeviceCode() string
 	GetPciAddr() string
-	GetNetName() string
 	IsSriovPF() bool
-	GetLinkSpeed() string
-	GetLinkType() string
 	GetSubClass() string
 	GetDeviceSpecs() []*pluginapi.DeviceSpec
 	GetEnvVal() string
 	GetMounts() []*pluginapi.Mount
 	GetAPIDevice() *pluginapi.Device
-	GetRdmaSpec() RdmaSpec
 	GetVFID() int
-	GetDDPProfiles() string
+	// GetDeviceType() string NOT SURE IF WE NEED THIS ... YET
+	// Moved to PCINetDevice
+	//GetPFName() string
+	//GetNetName() string
+	//GetLinkSpeed() string
+	//GetLinkType() string
+	//GetRdmaSpec() RdmaSpec
+	//GetDDPProfiles() string
 }
 
 // DeviceInfoProvider is an interface to get Device Plugin API specific device information
@@ -115,7 +137,7 @@ type DeviceInfoProvider interface {
 
 // DeviceSelector provides an interface for filtering a list of devices
 type DeviceSelector interface {
-	Filter([]PciNetDevice) []PciNetDevice
+	Filter([]GenericPciDevice) []GenericPciDevice
 }
 
 // LinkWatcher in interface to watch Network link status

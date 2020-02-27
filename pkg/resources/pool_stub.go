@@ -20,21 +20,30 @@ import (
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 )
 
+// Remove the base struct. Let each device type implement the API
 type resourcePool struct {
 	config     *types.ResourceConfig
 	devices    map[string]*pluginapi.Device
-	devicePool map[string]types.PciNetDevice
+	devicePool map[string]types.GenericPciDevice
 }
 
-var _ types.ResourcePool = &resourcePool{}
+//var _ types.ResourcePool = &resourcePool{} why???
 
 // newResourcePool returns an instance of resourcePool
-func newResourcePool(rc *types.ResourceConfig, apiDevices map[string]*pluginapi.Device, devicePool map[string]types.PciNetDevice) types.ResourcePool {
-	return &resourcePool{
-		config:     rc,
-		devices:    apiDevices,
-		devicePool: devicePool,
+func newResourcePool(rc *types.ResourceConfig, apiDevices map[string]*pluginapi.Device, devicePool map[string]types.GenericPciDevice) types.ResourcePool {
+	switch rc.CommonConfig.ResourceType {
+	case "netdev":
+		return &netDevResourcePool{
+			resourcePool{
+				config:     rc,
+				devices:    apiDevices,
+				devicePool: devicePool,
+			},
+		}
+	case "other":
+		return nil
 	}
+	return nil
 }
 
 func (rp *resourcePool) GetConfig() *types.ResourceConfig {
@@ -47,11 +56,11 @@ func (rp *resourcePool) InitDevice() error {
 }
 
 func (rp *resourcePool) GetResourceName() string {
-	return rp.config.ResourceName
+	return rp.config.CommonConfig.ResourceName
 }
 
 func (rp *resourcePool) GetResourcePrefix() string {
-	return rp.config.ResourcePrefix
+	return rp.config.CommonConfig.ResourcePrefix
 }
 
 func (rp *resourcePool) GetDevices() map[string]*pluginapi.Device {
@@ -68,21 +77,11 @@ func (rp *resourcePool) GetDeviceSpecs(deviceIDs []string) []*pluginapi.DeviceSp
 	glog.Infof("GetDeviceSpecs(): for devices: %v", deviceIDs)
 	devSpecs := make([]*pluginapi.DeviceSpec, 0)
 
-	// Add vfio group specific devices
 	for _, id := range deviceIDs {
 		if dev, ok := rp.devicePool[id]; ok {
 			newSpecs := dev.GetDeviceSpecs()
-			rdmaSpec := dev.GetRdmaSpec()
-			if rp.config.IsRdma {
-				if rdmaSpec.IsRdma() {
-					rdmaDeviceSpec := rdmaSpec.GetRdmaDeviceSpec()
-					newSpecs = append(newSpecs, rdmaDeviceSpec...)
-				} else {
-					glog.Errorf("GetDeviceSpecs(): rdma is required in the configuration but the device %v is not rdma device", id)
-				}
-			}
 			for _, ds := range newSpecs {
-				if !rp.deviceSpecExist(devSpecs, ds) {
+				if !deviceSpecExist(devSpecs, ds) {
 					devSpecs = append(devSpecs, ds)
 				}
 
@@ -121,7 +120,7 @@ func (rp *resourcePool) GetMounts(deviceIDs []string) []*pluginapi.Mount {
 	return devMounts
 }
 
-func (rp *resourcePool) deviceSpecExist(specs []*pluginapi.DeviceSpec, newSpec *pluginapi.DeviceSpec) bool {
+func deviceSpecExist(specs []*pluginapi.DeviceSpec, newSpec *pluginapi.DeviceSpec) bool {
 	for _, sp := range specs {
 		if sp.HostPath == newSpec.HostPath {
 			return true
