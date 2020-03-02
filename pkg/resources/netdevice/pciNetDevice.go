@@ -75,8 +75,8 @@ func (n NetDeviceType) GetName() string {
 // DiscoverHostDevices discovers Host devices of type NetDeviceType
 func (NetDeviceType) DiscoverHostDevices(pciDevs []*ghw.PCIDevice, rFactory types.ResourceFactory) ([]types.GenericPciDevice, []string) {
 
-	watchList := make([]string, 1)
-	devList := make([]types.GenericPciDevice, 1)
+	watchList := make([]string, 0)
+	devList := make([]types.GenericPciDevice, 0)
 
 	for _, device := range pciDevs {
 		devClass, err := strconv.ParseInt(device.Class.ID, 16, 64)
