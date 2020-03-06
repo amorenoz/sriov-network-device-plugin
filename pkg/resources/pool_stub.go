@@ -23,13 +23,13 @@ import (
 type resourcePool struct {
 	config     *types.ResourceConfig
 	devices    map[string]*pluginapi.Device
-	devicePool map[string]types.PciNetDevice
+	devicePool map[string]types.PoolDevice
 }
 
 var _ types.ResourcePool = &resourcePool{}
 
 // newResourcePool returns an instance of resourcePool
-func newResourcePool(rc *types.ResourceConfig, apiDevices map[string]*pluginapi.Device, devicePool map[string]types.PciNetDevice) types.ResourcePool {
+func newResourcePool(rc *types.ResourceConfig, apiDevices map[string]*pluginapi.Device, devicePool map[string]types.PoolDevice) types.ResourcePool {
 	return &resourcePool{
 		config:     rc,
 		devices:    apiDevices,
@@ -72,15 +72,6 @@ func (rp *resourcePool) GetDeviceSpecs(deviceIDs []string) []*pluginapi.DeviceSp
 	for _, id := range deviceIDs {
 		if dev, ok := rp.devicePool[id]; ok {
 			newSpecs := dev.GetDeviceSpecs()
-			rdmaSpec := dev.GetRdmaSpec()
-			if rp.config.IsRdma {
-				if rdmaSpec.IsRdma() {
-					rdmaDeviceSpec := rdmaSpec.GetRdmaDeviceSpec()
-					newSpecs = append(newSpecs, rdmaDeviceSpec...)
-				} else {
-					glog.Errorf("GetDeviceSpecs(): rdma is required in the configuration but the device %v is not rdma device", id)
-				}
-			}
 			for _, ds := range newSpecs {
 				if !rp.deviceSpecExist(devSpecs, ds) {
 					devSpecs = append(devSpecs, ds)

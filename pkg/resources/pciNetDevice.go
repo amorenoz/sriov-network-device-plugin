@@ -7,26 +7,21 @@ import (
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
 	"github.com/intel/sriov-network-device-plugin/pkg/utils"
 	"github.com/jaypipes/ghw"
-	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 )
 
 type pciNetDevice struct {
-	pciDevice   *ghw.PCIDevice
-	ifName      string
-	pfName      string
-	pfAddr      string
-	driver      string
-	vendor      string
-	product     string
-	vfID        int
-	linkSpeed   string
-	env         string
-	numa        string
-	apiDevice   *pluginapi.Device
-	deviceSpecs []*pluginapi.DeviceSpec
-	mounts      []*pluginapi.Mount
-	rdmaSpec    types.RdmaSpec
-	linkType    string
+	pciDevice *ghw.PCIDevice
+	ifName    string
+	pfName    string
+	pfAddr    string
+	driver    string
+	vendor    string
+	product   string
+	vfID      int
+	linkSpeed string
+	numa      string
+	rdmaSpec  types.RdmaSpec
+	linkType  string
 }
 
 // Convert NUMA node number to string.
@@ -67,24 +62,8 @@ func NewPciNetDevice(pciDevice *ghw.PCIDevice, rFactory types.ResourceFactory) (
 
 	// 			3. Get Device file info (e.g., uio, vfio specific)
 	// Get DeviceInfoProvider using device driver
-	infoProvider := rFactory.GetInfoProvider(driverName)
-	dSpecs := infoProvider.GetDeviceSpecs(pciAddr)
-	mnt := infoProvider.GetMounts(pciAddr)
-	env := infoProvider.GetEnvVal(pciAddr)
 	rdmaSpec := rFactory.GetRdmaSpec(pciDevice.Address)
 	nodeNum := utils.GetDevNode(pciAddr)
-	apiDevice := &pluginapi.Device{
-		ID:     pciAddr,
-		Health: pluginapi.Healthy,
-	}
-	if nodeNum >= 0 {
-		numaInfo := &pluginapi.NUMANode{
-			ID: int64(nodeNum),
-		}
-		apiDevice.Topology = &pluginapi.TopologyInfo{
-			Nodes: []*pluginapi.NUMANode{numaInfo},
-		}
-	}
 
 	linkType := ""
 	if len(ifName) > 0 {
@@ -97,19 +76,15 @@ func NewPciNetDevice(pciDevice *ghw.PCIDevice, rFactory types.ResourceFactory) (
 
 	// 			4. Create pciNetDevice object with all relevent info
 	return &pciNetDevice{
-		pciDevice:   pciDevice,
-		ifName:      ifName,
-		pfName:      pfName,
-		driver:      driverName,
-		vfID:        vfID,
-		linkSpeed:   "", // TO-DO: Get this using utils pkg
-		apiDevice:   apiDevice,
-		deviceSpecs: dSpecs,
-		mounts:      mnt,
-		env:         env,
-		numa:        nodeToStr(nodeNum),
-		rdmaSpec:    rdmaSpec,
-		linkType:    linkType,
+		pciDevice: pciDevice,
+		ifName:    ifName,
+		pfName:    pfName,
+		driver:    driverName,
+		vfID:      vfID,
+		linkSpeed: "", // TO-DO: Get this using utils pkg
+		numa:      nodeToStr(nodeNum),
+		rdmaSpec:  rdmaSpec,
+		linkType:  linkType,
 	}, nil
 }
 
@@ -151,22 +126,6 @@ func (nd *pciNetDevice) GetLinkSpeed() string {
 
 func (nd *pciNetDevice) GetSubClass() string {
 	return nd.pciDevice.Subclass.ID
-}
-
-func (nd *pciNetDevice) GetDeviceSpecs() []*pluginapi.DeviceSpec {
-	return nd.deviceSpecs
-}
-
-func (nd *pciNetDevice) GetEnvVal() string {
-	return nd.env
-}
-
-func (nd *pciNetDevice) GetMounts() []*pluginapi.Mount {
-	return nd.mounts
-}
-
-func (nd *pciNetDevice) GetAPIDevice() *pluginapi.Device {
-	return nd.apiDevice
 }
 
 func (nd *pciNetDevice) GetRdmaSpec() types.RdmaSpec {

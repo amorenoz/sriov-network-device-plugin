@@ -91,12 +91,22 @@ func (rf *resourceFactory) GetSelector(attr string, values []string) (types.Devi
 // GetResourcePool returns an instance of resourcePool
 func (rf *resourceFactory) GetResourcePool(rc *types.ResourceConfig, filteredDevice []types.PciNetDevice) (types.ResourcePool, error) {
 
-	devicePool := make(map[string]types.PciNetDevice, 0)
+	devicePool := make(map[string]types.PoolDevice, 0)
 	apiDevices := make(map[string]*pluginapi.Device)
 	for _, dev := range filteredDevice {
 		pciAddr := dev.GetPciAddr()
-		devicePool[pciAddr] = dev
-		apiDevices[pciAddr] = dev.GetAPIDevice()
+		poolDev, err := newPciNetPoolDevice(dev, rc, rf)
+		if err != nil {
+			glog.Errorf("Failed to create pool device for device: [pciAddr: %s, vendor: %s, device: %s, driver: %s]",
+				dev.GetPciAddr(),
+				dev.GetVendor(),
+				dev.GetDeviceCode(),
+				dev.GetDriver())
+			return nil, err
+		}
+
+		devicePool[pciAddr] = poolDev
+		apiDevices[pciAddr] = poolDev.GetAPIDevice()
 		glog.Infof("device added: [pciAddr: %s, vendor: %s, device: %s, driver: %s]",
 			dev.GetPciAddr(),
 			dev.GetVendor(),

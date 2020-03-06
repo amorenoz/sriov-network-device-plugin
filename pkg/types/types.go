@@ -84,7 +84,7 @@ type ResourcePool interface {
 	GetMounts(deviceIDs []string) []*pluginapi.Mount
 }
 
-// PciNetDevice provides an interface to get device specific information
+// PciNetDevice provides an interface to get network device specific information. Used for filtering and pool assignment
 type PciNetDevice interface {
 	GetPFName() string
 	GetPfPciAddr() string
@@ -97,13 +97,17 @@ type PciNetDevice interface {
 	GetLinkSpeed() string
 	GetLinkType() string
 	GetSubClass() string
+	GetRdmaSpec() RdmaSpec
+	GetVFID() int
+	GetDDPProfiles() string
+}
+
+// PoolDevice provides an interface to get the information that will be used by the ResourcePool
+type PoolDevice interface {
 	GetDeviceSpecs() []*pluginapi.DeviceSpec
 	GetEnvVal() string
 	GetMounts() []*pluginapi.Mount
 	GetAPIDevice() *pluginapi.Device
-	GetRdmaSpec() RdmaSpec
-	GetVFID() int
-	GetDDPProfiles() string
 }
 
 // DeviceInfoProvider is an interface to get Device Plugin API specific device information
