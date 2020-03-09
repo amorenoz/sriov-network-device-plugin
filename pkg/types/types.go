@@ -85,6 +85,7 @@ type NetDeviceSelectors struct {
 	LinkTypes   []string `json:"linkTypes,omitempty"`
 	DDPProfiles []string `json:"ddpProfiles,omitempty"`
 	IsRdma      bool     // the resource support rdma
+	VdpaType    string   `json:"vdpaType,omitempty"` // The type of vdpa supported: [client | server | kernel]
 }
 
 // AccelDeviceSelectors contains accelerator(FPGA etc.) related selectors fields

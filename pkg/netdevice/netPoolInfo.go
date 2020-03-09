@@ -30,15 +30,27 @@ type netPoolInfo struct {
 func newNetPoolInfo(netDev types.PciNetDevice, rc *types.ResourceConfig, rf types.ResourceFactory) (*netPoolInfo, error) {
 
 	glog.Infof("Creating netPoolInfo for PciNetDevice: %+v\n", netDev.GetPciAddr())
-	infoProvider := rf.GetInfoProvider(netDev.GetDriver())
+	s, _ := rc.SelectorObj.(*types.NetDeviceSelectors)
+
+	var infoProvider types.DeviceInfoProvider
+	switch s.VdpaType {
+	case "":
+		// Get the generic infoProvider
+		infoProvider = rf.GetInfoProvider(netDev.GetDriver())
+	case "client", "server":
+		infoProvider = newUserVdpaInfoProvider(s.VdpaType)
+	case "kernel":
+		return nil, fmt.Errorf("newNetPoolInfo: Kernel vdpa not supported")
+	default:
+		return nil, fmt.Errorf("newNetPoolInfo: Vdpa type %s not supported", s.VdpaType)
+	}
 	poolInfoImpl, err := resources.NewPoolInfoImpl(netDev, rc, infoProvider)
 	if err != nil {
 		return nil, err
 	}
 
 	// Append Rdma Specs only if Rdma is in the pool's selectors
-	s, _ := rc.SelectorObj.(*types.NetDeviceSelectors)
-	if s.IsRdma {
+	if s.IsRdma && s.VdpaType == "" {
 		rdmaSpec := netDev.GetRdmaSpec()
 		if rdmaSpec.IsRdma() {
 			rdmaDeviceSpec := rdmaSpec.GetRdmaDeviceSpec()
