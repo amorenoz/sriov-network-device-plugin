@@ -21,8 +21,8 @@ type pciNetPoolDevice struct {
 func newPciNetPoolDevice(pciDev types.PciNetDevice, rc *types.ResourceConfig, rFactory types.ResourceFactory) (*pciNetPoolDevice, error) {
 
 	glog.Infof("Creating PciNetPoolDevice for PciNetDevice: %+v\n", pciDev.GetPciAddr())
-	// Get Info provider from the driverName
-	infoProvider := rFactory.GetInfoProvider(pciDev.GetDriver())
+	// Get Info provider from the driverName and the pool's config
+	infoProvider := rFactory.GetInfoProvider(pciDev.GetDriver(), rc)
 
 	env := infoProvider.GetEnvVal(pciDev.GetPciAddr())
 	mnt := infoProvider.GetMounts(pciDev.GetPciAddr())

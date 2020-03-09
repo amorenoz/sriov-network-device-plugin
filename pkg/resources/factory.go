@@ -56,7 +56,7 @@ func (rf *resourceFactory) GetResourceServer(rp types.ResourcePool) (types.Resou
 }
 
 // GetInfoProvider returns an instance of DeviceInfoProvider using name as string
-func (rf *resourceFactory) GetInfoProvider(name string) types.DeviceInfoProvider {
+func (rf *resourceFactory) GetInfoProvider(name string, rc *types.ResourceConfig) types.DeviceInfoProvider {
 	switch name {
 	case "vfio-pci":
 		return newVfioResourcePool()
