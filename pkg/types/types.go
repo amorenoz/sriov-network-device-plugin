@@ -35,6 +35,7 @@ type ResourceConfig struct {
 	ResourcePrefix string `json:"resourcePrefix,omitempty"` // optional resource prefix that will ovewrite global prefix specified in cli params
 	ResourceName   string `json:"resourceName"`             // the resource name will be added with resource prefix in K8s api
 	IsRdma         bool   // the resource support rdma
+	VdpaType       string `json:"vdpaType,omitempty"` // The type of vDPA supported: [client | server | kernel | none (empty)]
 	Selectors      struct {
 		Vendors     []string `json:"vendors,omitempty"`
 		Devices     []string `json:"devices,omitempty"`

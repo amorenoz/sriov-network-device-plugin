@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
+	vdpa "github.com/intel/sriov-network-device-plugin/pkg/resources/vdpa"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 )
@@ -59,7 +60,11 @@ func (rf *resourceFactory) GetResourceServer(rp types.ResourcePool) (types.Resou
 func (rf *resourceFactory) GetInfoProvider(name string, rc *types.ResourceConfig) types.DeviceInfoProvider {
 	switch name {
 	case "vfio-pci":
+		if rc.VdpaType != "" {
+			return vdpa.NewUserInfoProvider(rc.VdpaType)
+		}
 		return newVfioResourcePool()
+
 	case "uio", "igb_uio":
 		return newUioResourcePool()
 	default:
