@@ -26,5 +26,8 @@ type UserDaemonStub interface {
 
 // NewVdpaClient returns a VdpaClient instance
 func NewVdpaClient(mock bool) UserDaemonStub {
-	return newMockClient()
+	if mock {
+		return newMockClient()
+	}
+	return newDpdkClient()
 }
