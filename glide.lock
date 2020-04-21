@@ -139,6 +139,10 @@ imports:
   subpackages:
   - pkg/kubelet/apis/deviceplugin/v1beta1
   - pkg/kubelet/apis/pluginregistration/v1
+- name: github.com/amorenoz/govdpa
+  version: 44c7241b141c2e282fa0a2ebdc3e48025aa2d94e
+  subpackages:
+  - pkg/uvdpa
 testImports:
 - name: github.com/hpcloud/tail
   version: a1dbeea552b7c8df4b542c66073e393de198a800

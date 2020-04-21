@@ -2,17 +2,24 @@ package netdevice
 
 import (
 	"fmt"
+	"github.com/amorenoz/govdpa/pkg/uvdpa"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 )
 
 const (
-	vdpaBasePath = "/var/run/vdpa"
+	vdpaBasePath = "/var/run/uvdpa"
 )
 
 // UserInfoProvider implements DeviceInfoProvider for User vDPA devices
 type UserInfoProvider struct {
 	vdpaType string
+}
+
+func newUserVdpaInfoProvider(vdpaType string) types.DeviceInfoProvider {
+	return &UserInfoProvider{
+		vdpaType: vdpaType,
+	}
 }
 
 // GetDeviceSpecs returns the DeviceSpecs of the User vDPA Device
@@ -62,8 +69,14 @@ func vdpaSocketDir(pciAddr string) string {
 	return fmt.Sprintf("%s/%s", vdpaBasePath, pciAddr)
 }
 
-func newUserVdpaInfoProvider(vdpaType string) types.DeviceInfoProvider {
-	return &UserInfoProvider{
-		vdpaType: vdpaType,
+func userVdpaAllocate(device string, vdpaType string) error {
+	u := uvdpa.NewVdpaClient(false)
+	if err := u.Init(); err != nil {
+		return err
 	}
+	return u.Create(uvdpa.VhostIface{
+		Device: device,
+		Socket: vdpaSocketPath(device),
+		Mode:   vdpaType,
+	})
 }

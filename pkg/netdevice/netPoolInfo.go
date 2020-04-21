@@ -39,6 +39,9 @@ func newNetPoolInfo(netDev types.PciNetDevice, rc *types.ResourceConfig, rf type
 		infoProvider = rf.GetInfoProvider(netDev.GetDriver())
 	case "client", "server":
 		infoProvider = newUserVdpaInfoProvider(s.VdpaType)
+		if err := userVdpaAllocate(netDev.GetPciAddr(), s.VdpaType); err != nil {
+			return nil, err
+		}
 	case "kernel":
 		return nil, fmt.Errorf("newNetPoolInfo: Kernel vdpa not supported")
 	default:
