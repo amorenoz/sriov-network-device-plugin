@@ -119,6 +119,13 @@ func (rs *resourceServer) Allocate(ctx context.Context, rqt *pluginapi.AllocateR
 		containerResp.Devices = rs.resourcePool.GetDeviceSpecs(container.DevicesIDs)
 		containerResp.Envs = rs.getEnvs(container.DevicesIDs)
 		containerResp.Mounts = rs.resourcePool.GetMounts(container.DevicesIDs)
+		annotations := make(map[string]string, 0)
+		annotations["sriov-network-device-plugin-generic-annotation"] = "value"
+		for _, i := range container.DevicesIDs {
+			annotations[fmt.Sprintf("specific-anno-%s", i)] = fmt.Sprintf("value-%s", i)
+		}
+		glog.Infof("anno  %+v", annotations)
+		containerResp.Annotations = annotations
 		resp.ContainerResponses = append(resp.ContainerResponses, containerResp)
 	}
 	glog.Infof("AllocateResponse send: %+v", resp)
