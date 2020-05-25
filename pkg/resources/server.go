@@ -119,6 +119,7 @@ func (rs *resourceServer) Allocate(ctx context.Context, rqt *pluginapi.AllocateR
 		containerResp.Devices = rs.resourcePool.GetDeviceSpecs(container.DevicesIDs)
 		containerResp.Envs = rs.getEnvs(container.DevicesIDs)
 		containerResp.Mounts = rs.resourcePool.GetMounts(container.DevicesIDs)
+
 		resp.ContainerResponses = append(resp.ContainerResponses, containerResp)
 	}
 	glog.Infof("AllocateResponse send: %+v", resp)

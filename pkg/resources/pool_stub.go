@@ -15,9 +15,11 @@
 package resources
 
 import (
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
+	"strings"
 )
 
 // ResourcePoolImpl implements stub ResourcePool interface
@@ -118,6 +120,17 @@ func (rp *ResourcePoolImpl) GetMounts(deviceIDs []string) []*pluginapi.Mount {
 			mnt := dev.GetMounts()
 			devMounts = append(devMounts, mnt...)
 		}
+		basePath := "/etc/k8s.cni.cncf.io/network-attachment-definitions"
+		pci := id
+		pci = strings.Replace(pci, ":", "__", -1)
+		pci = strings.Replace(pci, ".", "_", -1)
+		uniqueHostPath := fmt.Sprintf("%s_%s", basePath, pci)
+		m := pluginapi.Mount{
+			ContainerPath: basePath,
+			HostPath:      uniqueHostPath,
+			ReadOnly:      false,
+		}
+		devMounts = append(devMounts, &m)
 	}
 	return devMounts
 }
