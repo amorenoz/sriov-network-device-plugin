@@ -188,6 +188,11 @@ func (rs *resourceServer) Init() error {
 func (rs *resourceServer) Start() error {
 	resourceName := rs.resourcePool.GetResourceName()
 	_ = rs.cleanUp() // try tp clean up and continue
+
+	if err := rs.resourcePool.StorePoolInfo(rs.resourceNamePrefix); err != nil {
+		glog.Errorf("error creating resourcePool snapshot %v", resourceName, err)
+		return err
+	}
 	glog.Infof("starting %s device plugin endpoint at: %s\n", resourceName, rs.endPoint)
 	lis, err := net.Listen("unix", rs.sockPath)
 	if err != nil {
@@ -293,6 +298,10 @@ func (rs *resourceServer) Watch() {
 
 func (rs *resourceServer) cleanUp() error {
 	if err := os.Remove(rs.sockPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := rs.resourcePool.CleanPoolInfo(rs.resourceNamePrefix); err != nil {
 		return err
 	}
 	return nil

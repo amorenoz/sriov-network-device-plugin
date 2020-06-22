@@ -15,6 +15,11 @@
 package resources
 
 import (
+	"fmt"
+	"os"
+
+	napi "github.com/amorenoz/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	nutils "github.com/amorenoz/network-attachment-definition-client/pkg/utils"
 	"github.com/golang/glog"
 	"github.com/intel/sriov-network-device-plugin/pkg/types"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
@@ -28,6 +33,8 @@ type ResourcePoolImpl struct {
 }
 
 var _ types.ResourcePool = &ResourcePoolImpl{}
+
+const baseDevInfoPath = "/var/run/dp.npwg.cncf.io/devinfo"
 
 // NewResourcePool returns an instance of resourcePool
 func NewResourcePool(rc *types.ResourceConfig, apiDevices map[string]*pluginapi.Device, devicePool map[string]types.PciDevice) *ResourcePoolImpl {
@@ -135,4 +142,35 @@ func (rp *ResourcePoolImpl) DeviceSpecExist(specs []*pluginapi.DeviceSpec, newSp
 // GetDevicePool returns PciDevice pool as a map
 func (rp *ResourcePoolImpl) GetDevicePool() map[string]types.PciDevice {
 	return rp.devicePool
+}
+
+// StorePoolInfo stores the Pool information in a file path so that it
+// can be consumed by other subs-sytems. The path and format is specified
+// in the NPWG Device Information proposal
+func (rp *ResourcePoolImpl) StorePoolInfo(resourceNamePrefix string) error {
+	for id, dev := range rp.devicePool {
+		devInfo := napi.DeviceInfo{
+			Type: "pci",
+			Pci: &napi.PciDevice{
+				Address: dev.GetPciAddr(),
+			},
+		}
+		resource := fmt.Sprintf("%s/%s", resourceNamePrefix, rp.config.ResourceName)
+		if err := nutils.SaveDPDeviceInfo(resource, id, &devInfo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CleanPoolInfo Cleans the snapshotted information
+func (rp *ResourcePoolImpl) CleanPoolInfo(resourceNamePrefix string) error {
+	basepath := fmt.Sprintf("%s/%s/%s/", baseDevInfoPath,
+		resourceNamePrefix,
+		rp.config.ResourceName)
+
+	if _, err := os.Stat(basepath); !os.IsNotExist(err) {
+		return os.RemoveAll(basepath)
+	}
+	return nil
 }

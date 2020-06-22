@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/Mellanox/rdmamap v1.0.0
+	github.com/amorenoz/network-attachment-definition-client poc/devinfo
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/jaypipes/ghw v0.6.0
 	github.com/jaypipes/pcidb v0.5.0

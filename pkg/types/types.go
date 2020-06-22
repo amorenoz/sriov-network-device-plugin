@@ -141,6 +141,8 @@ type ResourcePool interface {
 	GetDeviceSpecs(deviceIDs []string) []*pluginapi.DeviceSpec
 	GetEnvs(deviceIDs []string) []string
 	GetMounts(deviceIDs []string) []*pluginapi.Mount
+	StorePoolInfo(string) error
+	CleanPoolInfo(string) error
 }
 
 // DeviceProvider provides interface for device discovery
