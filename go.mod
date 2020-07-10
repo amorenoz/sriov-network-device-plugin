@@ -14,5 +14,6 @@ require (
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
 	google.golang.org/grpc v1.28.1
+	k8s.io/client-go v0.0.0-20190918160344-1fbdaa4c8d90 // indirect
 	k8s.io/kubelet v0.18.1
 )
