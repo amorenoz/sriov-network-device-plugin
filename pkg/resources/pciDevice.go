@@ -47,7 +47,9 @@ func nodeToStr(nodeNum int) string {
 }
 
 // NewPciDevice returns an instance of PciDevice interface
-func NewPciDevice(dev *ghw.PCIDevice, rFactory types.ResourceFactory) (types.PciDevice, error) {
+// A list of DeviceInfoProviders can be set externally.
+// If empty, the default driver-based selection provided by ResourceFactory will be used
+func NewPciDevice(dev *ghw.PCIDevice, rFactory types.ResourceFactory, infoProviders []types.DeviceInfoProvider) (types.PciDevice, error) {
 
 	pciAddr := dev.Address
 
@@ -68,12 +70,23 @@ func NewPciDevice(dev *ghw.PCIDevice, rFactory types.ResourceFactory) (types.Pci
 		return nil, err
 	}
 
-	// Get Device file info (e.g., uio, vfio specific)
-	// Get DeviceInfoProvider using device driver
-	infoProvider := rFactory.GetInfoProvider(driverName)
-	dSpecs := infoProvider.GetDeviceSpecs(pciAddr)
-	mnt := infoProvider.GetMounts(pciAddr)
-	env := infoProvider.GetEnvVal(pciAddr)
+	// Use the default Information Provided if not
+	if len(infoProviders) == 0 {
+		infoProviders = append(infoProviders, rFactory.GetDefaultInfoProvider(driverName))
+	}
+
+	// Currently Device Plugin does not support returning multiple Env Vars
+	// so we use the value provided by the first InfoProvider.
+	env := infoProviders[0].GetEnvVal(pciAddr)
+
+	// Append Mounts and Device Specs
+	dSpecs := make([]*pluginapi.DeviceSpec, 0)
+	mnt := make([]*pluginapi.Mount, 0)
+	for _, infoProvider := range infoProviders {
+		dSpecs = append(dSpecs, infoProvider.GetDeviceSpecs(pciAddr)...)
+		mnt = append(mnt, infoProvider.GetMounts(pciAddr)...)
+	}
+
 	nodeNum := utils.GetDevNode(pciAddr)
 	apiDevice := &pluginapi.Device{
 		ID:     pciAddr,
