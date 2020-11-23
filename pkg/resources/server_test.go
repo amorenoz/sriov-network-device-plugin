@@ -71,6 +71,8 @@ var _ = Describe("Server", func() {
 
 			if shouldRunServer {
 				if shouldEnablePluginWatch {
+					rp.On("StoreDeviceInfoFile", "fakeprefix").Return(nil)
+					rp.On("CleanDeviceInfoFile", "fakeprefix").Return(nil)
 					rs.Start()
 				} else {
 					os.MkdirAll(pluginapi.DevicePluginPath, 0755)
@@ -138,7 +140,9 @@ var _ = Describe("Server", func() {
 				On("GetResourceName").Return("fake.com").
 				On("DiscoverDevices").Return(nil).
 				On("GetDevices").Return(map[string]*pluginapi.Device{}).
-				On("Probe").Return(true)
+				On("Probe").Return(true).
+				On("StoreDeviceInfoFile", "fake").Return(nil).
+				On("CleanDeviceInfoFile", "fake").Return(nil)
 			fs = &utils.FakeFilesystem{}
 		})
 		Context("starting, restarting and stopping the resource server", func() {
@@ -153,6 +157,11 @@ var _ = Describe("Server", func() {
 				registrationServer := createFakeRegistrationServer(fs.RootDir,
 					"fake_fake.com.fake", false, false)
 				os.MkdirAll(pluginapi.DevicePluginPath, 0755)
+
+				// Starting server should trigger a call to StoreDeviceInfoFile and CleanDeviceInfoFile
+				//rp.On("StoreDeviceInfoFile", "fake").Return(nil)
+				//rp.On("CleanDeviceInfoFile", "fake").Return(nil)
+
 				registrationServer.start()
 				defer registrationServer.stop()
 
@@ -164,6 +173,7 @@ var _ = Describe("Server", func() {
 				Eventually(rs.termSignal, time.Second*10).Should(Receive())
 
 				go func() {
+					rp.On("CleanDeviceInfoFile", "fake").Return(nil)
 					err := rs.Stop()
 					Expect(err).NotTo(HaveOccurred())
 				}()
@@ -180,6 +190,10 @@ var _ = Describe("Server", func() {
 				// Create ResourceServer with plugin watch mode enabled
 				rs := NewResourceServer("fake", "fake", true, &rp).(*resourceServer)
 
+				// Starting server should trigger a call to StoreDeviceInfoFile and CleanDeviceInfoFile
+				//rp.On("StoreDeviceInfoFile", "fake").Return(nil)
+				//rp.On("CleanDeviceInfoFile", "fake").Return(nil)
+
 				registrationServer := createFakeRegistrationServer(fs.RootDir,
 					"fake_fake.com.fake", false, true)
 				err := rs.Start()
@@ -189,6 +203,7 @@ var _ = Describe("Server", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				go func() {
+					rp.On("CleanDeviceInfoFile", "fake").Return(nil)
 					err := rs.Stop()
 					Expect(err).NotTo(HaveOccurred())
 				}()
@@ -204,7 +219,11 @@ var _ = Describe("Server", func() {
 				types.DeprecatedSockDir = fs.RootDir
 
 				// Create ResourceServer with plugin watch mode disabled
-				rs := NewResourceServer("fake.com", "fake", false, &rp).(*resourceServer)
+				rs := NewResourceServer("fake", "fake", false, &rp).(*resourceServer)
+
+				// Starting server should trigger a call to StoreDeviceInfoFile and CleanDeviceInfoFile
+				//rp.On("StoreDeviceInfoFile", "fake.com").Return(nil)
+				//rp.On("CleanDeviceInfoFile", "fake.com").Return(nil)
 
 				registrationServer := createFakeRegistrationServer(fs.RootDir,
 					"fake_fake.com.fake", false, false)
