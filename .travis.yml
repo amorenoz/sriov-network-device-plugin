@@ -1,5 +1,8 @@
 language: go
 
+go:
+  "1.14"
+
 matrix:
   include:
   - name: amd64
