@@ -169,7 +169,6 @@ var _ = Describe("Server", func() {
 				Eventually(rs.termSignal, time.Second*10).Should(Receive())
 
 				go func() {
-					rp.On("CleanDeviceInfoFile", "fake").Return(nil)
 					err := rs.Stop()
 					Expect(err).NotTo(HaveOccurred())
 				}()
@@ -195,7 +194,6 @@ var _ = Describe("Server", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				go func() {
-					rp.On("CleanDeviceInfoFile", "fake").Return(nil)
 					err := rs.Stop()
 					Expect(err).NotTo(HaveOccurred())
 				}()
